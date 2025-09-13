@@ -1,0 +1,731 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Portfolio Risk Analytics Dashboard</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+  <style>
+    * { margin:0; padding:0; box-sizing:border-box; }
+    body { font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background:#0a0e27; color:#fff; min-height:100vh; }
+    .dashboard { padding:20px; max-width:1600px; margin:0 auto; }
+    .header { background:linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius:20px; padding:40px; margin-bottom:30px; box-shadow:0 20px 40px rgba(0,0,0,0.4); text-align:center; }
+    h1 { font-size:36px; margin-bottom:10px; text-shadow:2px 2px 4px rgba(0,0,0,0.3); }
+    .subtitle { opacity:0.9; font-size:18px; }
+    .controls { display:flex; gap:15px; justify-content:center; margin-top:25px; flex-wrap:wrap; }
+    .btn { background:rgba(255,255,255,0.2); border:2px solid rgba(255,255,255,0.3); color:#fff; padding:12px 25px; border-radius:10px; cursor:pointer; font-size:16px; font-weight:600; transition:all 0.3s; backdrop-filter:blur(10px); }
+    .btn:hover { background:rgba(255,255,255,0.3); transform:translateY(-2px); box-shadow:0 5px 15px rgba(255,255,255,0.2); }
+    .btn.primary { background:linear-gradient(135deg, #f093fb 0%, #f5576c 100%); border:none; }
+    .tabs { display:flex; gap:10px; margin-bottom:30px; background:rgba(255,255,255,0.05); padding:10px; border-radius:15px; flex-wrap:wrap; }
+    .tab { padding:12px 25px; background:rgba(255,255,255,0.1); border-radius:10px; cursor:pointer; transition:all 0.3s; font-weight:500; }
+    .tab:hover { background:rgba(255,255,255,0.15); }
+    .tab.active { background:linear-gradient(135deg, #667eea, #764ba2); color:#fff; box-shadow:0 5px 15px rgba(102,126,234,0.4); }
+    .tab-content { display:none; animation:fadeIn 0.5s; }
+    .tab-content.active { display:block; }
+    @keyframes fadeIn { from {opacity:0; transform:translateY(10px);} to {opacity:1; transform:translateY(0);} }
+    .metrics-grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(280px,1fr)); gap:20px; margin-bottom:30px; }
+    .metric-card { background:linear-gradient(135deg, rgba(255,255,255,0.1), rgba(255,255,255,0.05)); border:1px solid rgba(255,255,255,0.1); border-radius:15px; padding:25px; backdrop-filter:blur(10px); transition:transform 0.3s, box-shadow 0.3s; }
+    .metric-card:hover { transform:translateY(-5px); box-shadow:0 10px 30px rgba(102,126,234,0.3); }
+    .metric-label { font-size:12px; color:rgba(255,255,255,0.7); text-transform:uppercase; letter-spacing:1px; margin-bottom:10px; }
+    .metric-value { font-size:32px; font-weight:bold; background:linear-gradient(135deg, #667eea, #f093fb); -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text; }
+    .metric-change { font-size:14px; margin-top:5px; opacity:0.8; }
+    .positive { color:#4ade80; }
+    .negative { color:#f87171; }
+    .chart-container { background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1); border-radius:15px; padding:25px; margin-bottom:20px; backdrop-filter:blur(10px); }
+    .chart-title { font-size:20px; margin-bottom:20px; color:#fff; }
+    table { width:100%; background:rgba(255,255,255,0.05); border-radius:15px; overflow:hidden; backdrop-filter:blur(10px); }
+    th { background:rgba(102,126,234,0.3); padding:15px; text-align:left; font-weight:600; text-transform:uppercase; font-size:12px; letter-spacing:1px; }
+    td { padding:15px; border-bottom:1px solid rgba(255,255,255,0.05); }
+    tr:hover { background:rgba(255,255,255,0.05); }
+    .upload-area { background:rgba(255,255,255,0.05); border:2px dashed rgba(102,126,234,0.5); border-radius:15px; padding:40px; text-align:center; margin:20px 0; cursor:pointer; transition:all 0.3s; position:relative; }
+    .upload-area:hover, .upload-area.dragover { background:rgba(102,126,234,0.1); border-color:#667eea; }
+    .upload-area input[type="file"] { position:absolute; width:100%; height:100%; top:0; left:0; opacity:0; cursor:pointer; }
+    .status-badge { display:inline-block; padding:4px 12px; border-radius:20px; font-size:12px; font-weight:600; text-transform:uppercase; }
+    .buy { background:rgba(74,222,128,0.2); color:#4ade80; }
+    .sell { background:rgba(248,113,113,0.2); color:#f87171; }
+    textarea { width:100%; min-height:200px; background:rgba(255,255,255,0.1); border:1px solid rgba(255,255,255,0.2); border-radius:10px; padding:15px; color:#fff; font-family:monospace; font-size:14px; resize:vertical; }
+    textarea::placeholder { color:rgba(255,255,255,0.5); }
+    .grid-2 { display:grid; grid-template-columns:repeat(auto-fit, minmax(500px, 1fr)); gap:20px; }
+    .file-info { margin-top:15px; padding:10px; background:rgba(102,126,234,0.2); border-radius:8px; display:none; }
+    .file-info.active { display:block; }
+    .format-helper { background:rgba(102,126,234,0.1); border:1px solid rgba(102,126,234,0.3); border-radius:10px; padding:15px; margin-top:20px; }
+    .format-helper h4 { color:#667eea; margin-bottom:10px; }
+    .format-helper code { background:rgba(0,0,0,0.3); padding:2px 6px; border-radius:4px; font-size:12px; }
+    .optimizer-section { margin-bottom:30px; }
+    .optimizer-controls { background:rgba(255,255,255,0.05); border-radius:10px; padding:20px; margin-bottom:20px; }
+    .optimizer-controls h4 { color:#667eea; margin-bottom:15px; }
+    .input-group { display:flex; align-items:center; gap:10px; margin-bottom:15px; }
+    .input-group label { min-width:150px; font-size:14px; }
+    .input-group input, .optimizer-controls select { flex:1; background:rgba(255,255,255,0.1); border:1px solid rgba(255,255,255,0.2); border-radius:5px; padding:8px; color:#fff; font-size:14px; }
+    .checkbox-group { display:flex; gap:20px; flex-wrap:wrap; margin:15px 0; }
+    .checkbox-group label { display:flex; align-items:center; gap:8px; cursor:pointer; }
+    .checkbox-group input[type="checkbox"], .checkbox-group input[type="radio"] { width:18px; height:18px; cursor:pointer; }
+    .risk-section { margin-top:30px; }
+    .risk-section h3 { color:#f093fb; margin-bottom:20px; }
+    .vertical-stack { display:flex; flex-direction:column; gap:20px; }
+    .chart-container.centered-chart { display:flex; flex-direction:column; align-items:center; }
+    .chart-container.centered-chart canvas { display:block; margin:0 auto; }
+  </style>
+</head>
+<body>
+<div class="dashboard">
+  <div class="header">
+    <h1>Portfolio Risk Analytics Dashboard</h1>
+    <p class="subtitle">Advanced Risk Management & Optimization Platform</p>
+    <div class="controls">
+      <button class="btn primary" onclick="processCSV()">Refresh Data</button>
+      <button class="btn" onclick="showUploadDialog()">Upload CSV</button>
+      <button class="btn" onclick="runOptimization()">Run Optimization</button>
+      <button class="btn" onclick="exportResults()">Export Results</button>
+    </div>
+  </div>
+
+  <div class="tabs">
+    <div class="tab active" onclick="switchTab('overview', this)">Overview</div>
+    <div class="tab" onclick="switchTab('positions', this)">Positions</div>
+    <div class="tab" onclick="switchTab('risk', this)">Risk Metrics</div>
+    <div class="tab" onclick="switchTab('factors', this)">Factor Exposure</div>
+    <div class="tab" onclick="switchTab('optimization', this)">Optimizer</div>
+    <div class="tab" onclick="switchTab('upload', this)">Data Upload</div>
+  </div>
+
+  <!-- Overview -->
+  <div id="overview" class="tab-content active">
+    <div class="metrics-grid">
+      <div class="metric-card">
+        <div class="metric-label">Portfolio Value</div>
+        <div class="metric-value" id="portfolioValue">—</div>
+        <div class="metric-change" id="portfolioChange">Upload CSV to begin</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-label">Total Allocation</div>
+        <div class="metric-value" id="totalAllocation">—</div>
+        <div class="metric-change">Capital Deployed</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-label">Active Positions</div>
+        <div class="metric-value" id="activePositions">—</div>
+        <div class="metric-change" id="longShortSplit">—</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-label">Portfolio Beta</div>
+        <div class="metric-value" id="beta">—</div>
+        <div class="metric-change">vs Market</div>
+      </div>
+    </div>
+
+    <div class="grid-2 vertical-stack">
+      <div class="chart-container centered-chart">
+        <h3 class="chart-title">Sector Allocation</h3>
+        <canvas id="sectorChart" width="600" height="240"></canvas>
+      </div>
+      <div class="chart-container centered-chart">
+        <h3 class="chart-title">Capital Allocation by Position</h3>
+        <canvas id="allocationChart" width="600" height="240"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <!-- Positions -->
+  <div id="positions" class="tab-content">
+    <div class="chart-container">
+      <h3 class="chart-title">Current Positions</h3>
+      <table id="positionsTable">
+        <thead>
+        <tr>
+          <th>Symbol</th><th>Direction</th><th>Sector</th><th>Market Cap</th>
+          <th>Price</th><th>Volume</th><th>Allocation (%)</th><th>Timeframe</th>
+          <th>Target</th><th>Stop Loss</th><th>Risk/Reward</th>
+        </tr>
+        </thead>
+        <tbody id="positionsBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Risk -->
+  <div id="risk" class="tab-content">
+    <div class="risk-section">
+      <h3>Portfolio Risk Analytics</h3>
+      <div class="metrics-grid">
+        <div class="metric-card"><div class="metric-label">Portfolio Beta</div><div class="metric-value" id="portfolioBeta">—</div><div class="metric-change">Market Exposure</div></div>
+        <div class="metric-card"><div class="metric-label">Expected Daily Volatility</div><div class="metric-value" id="dailyVol">—</div><div class="metric-change">1-Day Movement</div></div>
+        <div class="metric-card"><div class="metric-label">Weekly Volatility</div><div class="metric-value" id="weeklyVol">—</div><div class="metric-change">5-Day Movement</div></div>
+        <div class="metric-card"><div class="metric-label">Expected Daily Range</div><div class="metric-value" id="dailyRange">—</div><div class="metric-change">GK–YZ Estimator</div></div>
+        <div class="metric-card"><div class="metric-label">Expected Weekly Range</div><div class="metric-value" id="weeklyRange">—</div><div class="metric-change">GK–YZ Estimator</div></div>
+        <div class="metric-card"><div class="metric-label">Max Expected Drawdown</div><div class="metric-value" id="maxDD">—</div><div class="metric-change negative">Peak to Trough</div></div>
+      </div>
+    </div>
+
+    <div class="risk-section">
+      <h3>Value at Risk Analysis</h3>
+      <div class="metrics-grid">
+        <div class="metric-card"><div class="metric-label">Portfolio 5% VaR</div><div class="metric-value" id="var5">—</div><div class="metric-change negative">5-Day Horizon</div></div>
+        <div class="metric-card"><div class="metric-label">Portfolio 5% CVaR</div><div class="metric-value" id="cvar5">—</div><div class="metric-change negative">Conditional VaR</div></div>
+        <div class="metric-card"><div class="metric-label">Portfolio 1% VaR</div><div class="metric-value" id="var1">—</div><div class="metric-change negative">Extreme Risk</div></div>
+        <div class="metric-card"><div class="metric-label">Portfolio 1% CVaR</div><div class="metric-value" id="cvar1">—</div><div class="metric-change negative">Tail Risk</div></div>
+        <div class="metric-card"><div class="metric-label">Tail Risk (0.03%)</div><div class="metric-value" id="tailRisk">—</div><div class="metric-change negative">Black Swan Event</div></div>
+        <div class="metric-card"><div class="metric-label">Tail Risk Multiple</div><div class="metric-value" id="tailMultiple">—</div><div class="metric-change">vs Benchmark</div></div>
+      </div>
+    </div>
+
+    <div class="chart-container">
+      <h3 class="chart-title">Risk Distribution (Illustrative)</h3>
+      <canvas id="riskChart"></canvas>
+    </div>
+  </div>
+
+  <!-- Factors -->
+  <div id="factors" class="tab-content">
+    <div class="chart-container">
+      <h3 class="chart-title">Carhart Four-Factor Model</h3>
+      <table id="factorTable">
+        <thead>
+        <tr><th>Factor</th><th>Beta</th><th>T-Statistic</th><th>P-Value</th><th>Significance</th></tr>
+        </thead>
+        <tbody>
+        <tr><td>Market (Mkt-RF)</td><td id="mktBeta">—</td><td id="mktTstat">—</td><td id="mktPval">—</td><td id="mktSig">—</td></tr>
+        <tr><td>Size (SMB)</td><td id="smbBeta">—</td><td id="smbTstat">—</td><td id="smbPval">—</td><td id="smbSig">—</td></tr>
+        <tr><td>Value (HML)</td><td id="hmlBeta">—</td><td id="hmlTstat">—</td><td id="hmlPval">—</td><td id="hmlSig">—</td></tr>
+        <tr><td>Momentum (Mom)</td><td id="momBeta">—</td><td id="momTstat">—</td><td id="momPval">—</td><td id="momSig">—</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="chart-container" style="margin-top: 20px;">
+      <h3 class="chart-title">Factor Exposure Visualization</h3>
+      <canvas id="factorChart"></canvas>
+    </div>
+  </div>
+
+  <!-- Optimizer -->
+  <div id="optimization" class="tab-content">
+    <div class="optimizer-section">
+      <div class="optimizer-controls">
+        <h4>Factor Neutralization</h4>
+        <p style="margin-bottom: 15px; opacity: 0.8;">Select factors to neutralize in portfolio optimization:</p>
+        <div class="checkbox-group">
+          <label><input type="checkbox" id="neutralizeMarket" checked><span>Market Beta</span></label>
+          <label><input type="checkbox" id="neutralizeValue"><span>Value Factor</span></label>
+          <label><input type="checkbox" id="neutralizeMomentum"><span>Momentum Factor</span></label>
+          <label><input type="checkbox" id="neutralizeGrowth"><span>Growth Factor</span></label>
+        </div>
+        <button class="btn primary" onclick="runFactorNeutralization()">Apply Factor Neutralization</button>
+      </div>
+    </div>
+
+    <div class="optimizer-section">
+      <div class="optimizer-controls">
+        <h4>Portfolio Optimization</h4>
+        <p style="margin-bottom: 15px; opacity: 0.8;">Choose optimization strategy:</p>
+        <div class="checkbox-group">
+          <label><input type="radio" name="optStrategy" value="sharpe" checked><span>Maximize Sharpe Ratio</span></label>
+          <label><input type="radio" name="optStrategy" value="minvar"><span>Minimize Variance (GMV)</span></label>
+        </div>
+        <button class="btn primary" onclick="runPortfolioOptimization()">Optimize Portfolio</button>
+      </div>
+
+      <div class="metrics-grid" style="margin-top: 20px;">
+        <div class="metric-card"><div class="metric-label">Current Sharpe</div><div class="metric-value" id="currentSharpe">—</div><div class="metric-change">Before Optimization</div></div>
+        <div class="metric-card"><div class="metric-label">Optimal Sharpe</div><div class="metric-value" id="optimalSharpe">—</div><div class="metric-change positive">After Optimization</div></div>
+        <div class="metric-card"><div class="metric-label">Variance Reduction</div><div class="metric-value" id="varReduction">—</div><div class="metric-change positive">Risk Improvement</div></div>
+      </div>
+    </div>
+
+    <div class="optimizer-section">
+      <div class="optimizer-controls">
+        <h4>Tail Risk Hedging</h4>
+        <p style="margin-bottom: 15px; opacity: 0.8;">Configure tail risk protection strategy:</p>
+        <div class="input-group"><label>Protection Level (%):</label><input type="number" id="protectionLevel" value="10" min="0" max="100" step="1"></div>
+        <div class="input-group"><label>Max Hedging Cost (%):</label><input type="number" id="hedgingCost" value="2" min="0" max="10" step="0.1"></div>
+        <button class="btn primary" onclick="calculateTailHedge()">Calculate Hedge Requirements</button>
+      </div>
+
+      <div class="metrics-grid" style="margin-top: 20px;">
+        <div class="metric-card"><div class="metric-label">Unhedged Tail Risk</div><div class="metric-value" id="unhedgedTail">—</div><div class="metric-change negative">Current Exposure</div></div>
+        <div class="metric-card"><div class="metric-label">Hedged Tail Risk</div><div class="metric-value" id="hedgedTail">—</div><div class="metric-change positive">After Protection</div></div>
+        <div class="metric-card"><div class="metric-label">Hedge Ratio</div><div class="metric-value" id="hedgeRatio">—</div><div class="metric-change">Options Required</div></div>
+      </div>
+    </div>
+
+    <div class="chart-container">
+      <h3 class="chart-title">Efficient Frontier</h3>
+      <canvas id="frontierChart"></canvas>
+    </div>
+  </div>
+
+  <!-- Upload -->
+  <div id="upload" class="tab-content">
+    <div class="chart-container">
+      <h3 class="chart-title">Upload Portfolio Data</h3>
+      <p style="margin-bottom: 20px; opacity: 0.8;">Upload a CSV file or paste your data below</p>
+
+      <div class="upload-area" id="uploadArea">
+        <input type="file" id="fileInput" accept=".csv,text/csv,application/vnd.ms-excel" onchange="handleFileSelect(event)">
+        <div>
+          <svg style="width: 48px; height: 48px; margin-bottom: 15px; opacity: 0.6;" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+            <polyline points="7 10 12 15 17 10"></polyline>
+            <line x1="12" y1="15" x2="12" y2="3"></line>
+          </svg>
+          <p style="font-size: 18px; margin-bottom: 10px;">Drop CSV file here or click to browse</p>
+          <p style="font-size: 14px; opacity: 0.7;">Supported format: .csv</p>
+        </div>
+      </div>
+
+      <div class="file-info" id="fileInfo">
+        <p><strong>File loaded:</strong> <span id="fileName"></span></p>
+        <p><strong>Size:</strong> <span id="fileSize"></span></p>
+        <p><strong>Rows:</strong> <span id="fileRows"></span></p>
+      </div>
+
+      <p style="margin: 20px 0; text-align: center; opacity: 0.7;">— OR —</p>
+
+      <textarea id="csvInput" placeholder="Symbol,Execution,Sector,Market Capitalisation,Price,Volume,Capital Allocation,Timeframe,Target,Stop Loss
+AAPL,Buy,Technology,3000000000000,195.23,45000000,1550,Swing,210.00,185.00
+MSFT,Buy,Technology,2800000000000,412.56,25000000,1230,Position,425.00,400.00
+JPM,Sell,Financial,450000000000,156.78,12000000,870,Day,150.00,160.00"></textarea>
+
+      <div style="margin-top: 20px;">
+        <button class="btn primary" onclick="processCSV()">Process CSV Data</button>
+        <button class="btn" onclick="clearData()">Clear All Data</button>
+        <button class="btn" onclick="downloadSampleCSV()">Download Sample CSV</button>
+      </div>
+
+      <div class="format-helper">
+        <h4>Required CSV Format:</h4>
+        <p style="font-size: 14px; line-height: 1.6;">
+          Columns:<br>
+          <code>Symbol</code>, <code>Execution</code>, <code>Sector</code>, <code>Market Capitalisation</code>, <code>Price</code>, <code>Volume</code>, <code>Capital Allocation</code>, <code>Timeframe</code>, <code>Target</code>, <code>Stop Loss</code>
+        </p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+let portfolioData = [];
+let charts = {};
+const API_BASE = 'http://localhost:8000'; // backend adapter base
+
+// ---- Tabs ----
+function switchTab(tabName, element) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  element.classList.add('active');
+  document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+  document.getElementById(tabName).classList.add('active');
+}
+function showUploadDialog() { switchTab('upload', document.querySelectorAll('.tab')[5]); }
+
+// ---- File handling ----
+function handleFileSelect(e) { const f = e.target.files[0]; if (f) handleFile(f); }
+function handleFile(file) {
+  const isCSV = (file.type && file.type.toLowerCase().includes('csv')) || file.name.toLowerCase().endsWith('.csv');
+  if (!isCSV) { alert('Please upload a CSV (.csv) file'); return; }
+  const reader = new FileReader();
+  reader.onload = function(ev) {
+    const content = ev.target.result;
+    document.getElementById('csvInput').value = content;
+    document.getElementById('fileName').textContent = file.name;
+    document.getElementById('fileSize').textContent = (file.size / 1024).toFixed(2) + ' KB';
+    document.getElementById('fileRows').textContent = content.split(/\r?\n/).length - 1;
+    document.getElementById('fileInfo').classList.add('active');
+    processCSV();
+  };
+  reader.readAsText(file);
+}
+
+// ---- Helpers ----
+const fmtPct = (x) => (x === 0 ? '0.0%' : (x ? (x*100).toFixed(1)+'%' : '—'));
+const fmtPct2 = (x) => (x === 0 ? '0.00%' : (x ? (x*100).toFixed(2)+'%' : '—'));
+const fmtNum0 = (x) => (Number.isFinite(x) ? x.toFixed(0) : '—');
+const fmtNum2 = (x) => (Number.isFinite(x) ? x.toFixed(2) : '—');
+const fmtUSD0 = (x) => (Number.isFinite(x) ? ('$' + x.toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g, ',')) : '—');
+
+// ---- CSV -> Backend ----
+async function processCSV() {
+  const ta = document.getElementById('csvInput');
+  const csvText = (ta.value && ta.value.trim()) ? ta.value.trim() : (ta.getAttribute('placeholder') || '').trim();
+  if (!csvText) { alert('Please paste CSV data or upload a file first'); return; }
+
+  try {
+    const res = await fetch(`${API_BASE}/api/metrics`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ csv: csvText })          // ONLY portfolio CSV; backend handles factors itself
+    });
+    const payload = await res.json();
+    if (!payload.ok) throw new Error(payload.error || 'Server error');
+
+    const d = payload.data || {};
+
+    // -------- Overview (ONLY backend values, no client-side guesses) --------
+    const ov = d.overview || {};
+    document.getElementById('portfolioValue').textContent = fmtUSD0(ov.portfolioValue);
+    document.getElementById('totalAllocation').textContent = fmtPct(ov.totalAllocationFrac);
+    document.getElementById('activePositions').textContent = Number.isFinite(ov.activePositions) ? ov.activePositions : '—';
+    document.getElementById('portfolioChange').textContent = (Number.isFinite(ov.longCount) && Number.isFinite(ov.shortCount))
+      ? `${ov.longCount} Long / ${ov.shortCount} Short` : '—';
+    document.getElementById('beta').textContent = Number.isFinite(ov.beta) ? ov.beta.toFixed(2) : '—';
+
+    // Positions
+    portfolioData = (d.positions || []).map(p => ({
+      Symbol: p.Symbol, Execution: p.Execution, Sector: p.Sector,
+      MarketCap: p.MarketCap || 0, Price: p.Price || 0, Volume: p.Volume || 0,
+      Allocation: p.Allocation || 0, AllocationPercent: p.AllocationPercent || 0,
+      Timeframe: p.Timeframe || '', Target: p.Target || 0, StopLoss: p.StopLoss || 0,
+    }));
+    updatePositionsTable();
+
+    // -------- Risk metrics (ONLY backend values) --------
+    const r = d.risk || {};
+    document.getElementById('portfolioBeta').textContent = Number.isFinite(r.portfolioBeta) ? r.portfolioBeta.toFixed(2) : '—';
+    document.getElementById('dailyVol').textContent   = fmtPct(r.dailyVol);
+    document.getElementById('weeklyVol').textContent  = fmtPct(r.weeklyVol);
+    document.getElementById('dailyRange').textContent = r.dailyRange === 0 ? '±0.0%' : (r.dailyRange ? '±' + (r.dailyRange*100).toFixed(1) + '%' : '—');
+    document.getElementById('weeklyRange').textContent= r.weeklyRange === 0 ? '±0.0%' : (r.weeklyRange ? '±' + (r.weeklyRange*100).toFixed(1) + '%' : '—');
+    document.getElementById('maxDD').textContent      = fmtPct(r.maxDD);
+
+    document.getElementById('var5').textContent   = fmtPct(r.var5);
+    document.getElementById('cvar5').textContent  = fmtPct(r.cvar5);
+    document.getElementById('var1').textContent   = fmtPct(r.var1);
+    document.getElementById('cvar1').textContent  = fmtPct(r.cvar1);
+    document.getElementById('tailRisk').textContent = fmtPct(r.tailRisk);
+    document.getElementById('tailMultiple').textContent = Number.isFinite(r.tailMultiple) ? r.tailMultiple.toFixed(2) + 'x' : '—';
+
+    document.getElementById('expReturnDaily').textContent  = fmtPct2(r.expReturnDaily);
+    document.getElementById('expReturnWeekly').textContent = fmtPct2(r.expReturnWeekly);
+    document.getElementById('sharpeGross').textContent     = Number.isFinite(r.sharpeGross) ? r.sharpeGross.toFixed(2) : '—';
+    document.getElementById('sharpeNet').textContent       = Number.isFinite(r.sharpeNet) ? r.sharpeNet.toFixed(2) : '—';
+
+    // -------- Factors (optional, shown only if backend provides) --------
+    renderFactors(d.factors || null);
+
+    // -------- Charts (fed by backend exposures) --------
+    Object.values(charts).forEach(c => { try { c.destroy?.(); } catch(e){} });
+    initializeChartsFromBackend(d.exposures || {sectors:{},names:{}});
+
+    switchTab('overview', document.querySelector('.tab'));
+  } catch (err) {
+    alert('Error processing CSV: ' + err.message);
+  }
+}
+
+// ---- Charts from backend exposures ----
+function initializeChartsFromBackend(exposures) {
+  const sectors = exposures?.sectors || {};
+  const names = exposures?.names || {};
+
+  // Sector doughnut
+  const sectorEl = document.getElementById('sectorChart');
+  if (sectorEl) {
+    charts.sector = new Chart(sectorEl.getContext('2d'), {
+      type: 'doughnut',
+      data: {
+        labels: Object.keys(sectors),
+        datasets: [{
+          data: Object.values(sectors).map(v=>v*100),
+          backgroundColor:['#667eea','#f093fb','#4ade80','#f87171','#fbbf24','#60a5fa','#c084fc','#fb923c','#a78bfa','#34d399'],
+          borderWidth: 0
+        }]
+      },
+      options: {
+        responsive: false,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { labels:{ color:'#fff' }, position:'bottom' },
+          tooltip: { callbacks: { label: (ctx) => `${ctx.label}: ${ctx.parsed.toFixed(2)}%` } }
+        }
+      }
+    });
+  }
+
+  // Allocation bar
+  const allocationEl = document.getElementById('allocationChart');
+  if (allocationEl) {
+    const symbols = Object.keys(names);
+    const values  = symbols.map(s => names[s]*100);
+    const dirBySymbol = {};
+    portfolioData.forEach(p => { dirBySymbol[p.Symbol] = p.Execution; });
+
+    charts.allocation = new Chart(allocationEl.getContext('2d'), {
+      type:'bar',
+      data:{
+        labels: symbols,
+        datasets:[{
+          label:'Capital Allocation %',
+          data: values,
+          backgroundColor: symbols.map(sym => (dirBySymbol[sym]==='Sell'?'rgba(248,113,113,0.6)':'rgba(74,222,128,0.6)')),
+          borderColor: symbols.map(sym => (dirBySymbol[sym]==='Sell'?'#f87171':'#4ade80')),
+          borderWidth:2
+        }]
+      },
+      options:{
+        responsive:false,
+        maintainAspectRatio:false,
+        plugins:{ legend:{ display:true, labels:{ color:'#fff' } } },
+        scales:{
+          x:{ grid:{ color:'rgba(255,255,255,0.1)' }, ticks:{ color:'#fff' } },
+          y:{ grid:{ color:'rgba(255,255,255,0.1)' }, ticks:{ color:'#fff', callback:(v)=> v + '%' } }
+        }
+      }
+    });
+  }
+
+  // Risk distribution (illustrative)
+  const riskCtx = document.getElementById('riskChart');
+  if (riskCtx) {
+    charts.risk = new Chart(riskCtx.getContext('2d'), {
+      type:'line',
+      data:{ labels:Array.from({length:100}, (_,i)=> i-50),
+        datasets:[{ label:'Return Distribution',
+          data:Array.from({length:100}, (_,i)=> { const x=(i-50)/10; return Math.exp(-x*x/2)/Math.sqrt(2*Math.PI)*100; }),
+          borderColor:'#667eea', backgroundColor:'rgba(102,126,234,0.1)', fill:true
+        }]
+      },
+      options:{ responsive:true, plugins:{ legend:{ labels:{ color:'#fff' } } },
+        scales:{ x:{ title:{ display:true, text:'Returns (%)', color:'#fff' }, grid:{ color:'rgba(255,255,255,0.1)' }, ticks:{ color:'#fff' } },
+                 y:{ title:{ display:true, text:'Probability', color:'#fff' }, grid:{ color:'rgba(255,255,255,0.1)' }, ticks:{ color:'#fff' } } }
+      }
+    });
+  }
+}
+
+// ---- Factor table & chart ----
+function renderFactors(map) {
+  // If backend omits factors, show em-dashes
+  const set = (id, val, digits=null) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    if (val === null || val === undefined || (typeof val === 'number' && !Number.isFinite(val))) { el.textContent = '—'; return; }
+    el.textContent = (digits !== null && typeof val === 'number') ? val.toFixed(digits) : val;
+  };
+
+  const f = map || {};
+  set('mktBeta', f['Mkt-RF']?.beta, 3);
+  set('mktTstat', f['Mkt-RF']?.t);
+  set('mktPval',  f['Mkt-RF']?.p);
+  set('mktSig',   f['Mkt-RF']?.sig);
+
+  set('smbBeta', f['SMB']?.beta, 3);
+  set('smbTstat', f['SMB']?.t);
+  set('smbPval',  f['SMB']?.p);
+  set('smbSig',   f['SMB']?.sig);
+
+  set('hmlBeta', f['HML']?.beta, 3);
+  set('hmlTstat', f['HML']?.t);
+  set('hmlPval',  f['HML']?.p);
+  set('hmlSig',   f['HML']?.sig);
+
+  set('momBeta', f['Mom']?.beta, 3);
+  set('momTstat', f['Mom']?.t);
+  set('momPval',  f['Mom']?.p);
+  set('momSig',   f['Mom']?.sig);
+
+  // Factor bar chart (only if data present)
+  const factorEl = document.getElementById('factorChart');
+  try { charts.factor?.destroy?.(); } catch(e){}
+  if (map && Object.keys(map).length) {
+    const labels = ['Mkt-RF','SMB','HML','Mom'].filter(k => map[k]?.beta !== undefined);
+    const data = labels.map(k => +map[k].beta);
+    charts.factor = new Chart(factorEl.getContext('2d'), {
+      type:'bar',
+      data:{ labels, datasets:[{ label:'Beta', data, backgroundColor:'#60a5fa', borderColor:'#3b82f6', borderWidth:2 }] },
+      options:{
+        responsive:true,
+        plugins:{ legend:{ labels:{ color:'#fff' } } },
+        scales:{
+          x:{ grid:{ color:'rgba(255,255,255,0.1)' }, ticks:{ color:'#fff' } },
+          y:{ grid:{ color:'rgba(255,255,255,0.1)' }, ticks:{ color:'#fff' } }
+        }
+      }
+    });
+  } else {
+    if (factorEl?.getContext) {
+      factorEl.getContext('2d').clearRect(0,0,factorEl.width,factorEl.height);
+    }
+  }
+}
+
+// ---- Positions table ----
+function formatMarketCap(v) {
+  if (!Number.isFinite(v)) return '—';
+  if (v >= 1e12) return (v/1e12).toFixed(1) + 'T';
+  if (v >= 1e9)  return (v/1e9).toFixed(1) + 'B';
+  if (v >= 1e6)  return (v/1e6).toFixed(1) + 'M';
+  return v.toFixed(0);
+}
+function formatVolume(v) {
+  if (!Number.isFinite(v)) return '—';
+  if (v >= 1e6) return (v/1e6).toFixed(1) + 'M';
+  if (v >= 1e3) return (v/1e3).toFixed(1) + 'K';
+  return v.toFixed(0);
+}
+function calculateRiskReward(p) {
+  const price = p.Price || 0;
+  const riskPct = Math.abs((price - (p.StopLoss||0)) / (price || 1) * 100);
+  const rewardPct = Math.abs(((p.Target||0) - price) / (price || 1) * 100);
+  const rr = rewardPct / (riskPct || 1);
+  return Number.isFinite(rr) ? rr.toFixed(2) : '—';
+}
+function updatePositionsTable() {
+  const tbody = document.getElementById('positionsBody');
+  if (!tbody) return;
+  tbody.innerHTML = '';
+  portfolioData.forEach(p => {
+    const row = tbody.insertRow();
+    const rr = calculateRiskReward(p);
+    row.innerHTML = `
+      <td>${p.Symbol}</td>
+      <td><span class="status-badge ${p.Execution?.toLowerCase()}">${p.Execution || '—'}</span></td>
+      <td>${p.Sector || '—'}</td>
+      <td>${formatMarketCap(p.MarketCap)}</td>
+      <td>${Number.isFinite(p.Price) ? p.Price.toFixed(2) : '—'}</td>
+      <td>${formatVolume(p.Volume)}</td>
+      <td>${Number.isFinite(p.AllocationPercent) ? (p.AllocationPercent*100).toFixed(1) + '%' : '—'}</td>
+      <td>${p.Timeframe || '—'}</td>
+      <td>${Number.isFinite(p.Target) ? p.Target.toFixed(2) : '—'}</td>
+      <td>${Number.isFinite(p.StopLoss) ? p.StopLoss.toFixed(2) : '—'}</td>
+      <td class="${rr >= 2 ? 'positive' : rr >= 1 ? '' : 'negative'}">${rr==='—'?'—':'1:'+rr}</td>
+    `;
+  });
+}
+
+// ---- Optimizer (backend-only) ----
+async function runPortfolioOptimization() {
+  const strategy = document.querySelector('input[name="optStrategy"]:checked').value; // 'sharpe' | 'minvar'
+  const strategyKey = (strategy === 'minvar') ? 'gmv' : 'sharpe';
+  const csvText = (document.getElementById('csvInput').value || document.getElementById('csvInput').getAttribute('placeholder') || '').trim();
+  if (!csvText) { alert('Please upload or paste a CSV first.'); return; }
+
+  try {
+    const res = await fetch(`${API_BASE}/api/optimize`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ strategy: strategyKey, csv: csvText })
+    });
+    const payload = await res.json();
+    if (!payload.ok) throw new Error(payload.error || 'Optimizer error');
+
+    const out = payload.data || {};
+    document.getElementById('currentSharpe').textContent = Number.isFinite(out.currentSharpe) ? out.currentSharpe.toFixed(2) : '—';
+    document.getElementById('optimalSharpe').textContent = Number.isFinite(out.optimalSharpe) ? out.optimalSharpe.toFixed(2) : '—';
+    document.getElementById('varReduction').textContent = Number.isFinite(out.varianceReductionPct) ? out.varianceReductionPct.toFixed(1) + '%' : '—';
+
+    const frontierCtx = document.getElementById('frontierChart');
+    if (frontierCtx) {
+      try { charts.frontier?.destroy?.(); } catch(e){}
+      charts.frontier = new Chart(frontierCtx.getContext('2d'), {
+        type: 'scatter',
+        data: {
+          datasets: [
+            { label:'Efficient Frontier',
+              data: (out.frontier || []).map(p => ({x:p.x, y:p.y})),
+              borderColor:'#667eea', backgroundColor:'rgba(102,126,234,0.5)', showLine:true, fill:false },
+            { label:'Current Portfolio',
+              data:[ out.currentPoint || {x:0,y:0} ],
+              backgroundColor:'#f093fb', pointRadius:10 },
+            { label:'Optimal Portfolio',
+              data:[ out.optimalPoint || {x:0,y:0} ],
+              backgroundColor:'#4ade80', pointRadius:10 }
+          ]
+        },
+        options:{
+          responsive:true,
+          plugins:{ legend:{ labels:{ color:'#fff' } } },
+          scales:{
+            x:{ title:{ display:true, text:'Risk (%)', color:'#fff' }, grid:{ color:'rgba(255,255,255,0.1)' }, ticks:{ color:'#fff' } },
+            y:{ title:{ display:true, text:'Return (%)', color:'#fff' }, grid:{ color:'rgba(255,255,255,0.1)' }, ticks:{ color:'#fff' } }
+          }
+        }
+      });
+    }
+
+    alert(`Optimization complete: ${strategyKey.toUpperCase()}`);
+  } catch (e) {
+    alert('Optimization failed: ' + e.message);
+  }
+}
+
+// ---- Other controls ----
+function runFactorNeutralization() {
+  const factors = [];
+  if (document.getElementById('neutralizeMarket').checked) factors.push('Market');
+  if (document.getElementById('neutralizeValue').checked) factors.push('Value');
+  if (document.getElementById('neutralizeMomentum').checked) factors.push('Momentum');
+  if (document.getElementById('neutralizeGrowth').checked) factors.push('Growth');
+  alert(`Applying factor neutralization for: ${factors.join(', ')}\n(Recalculate weights in backend if needed)`);
+}
+function calculateTailHedge() {
+  const protectionLevel = +document.getElementById('protectionLevel').value;
+  const hedgingCost = +document.getElementById('hedgingCost').value;
+  // Display-only math; actual hedge sizing should be handled in backend if needed
+  const unhedged = document.getElementById('tailRisk').textContent.replace('%','').replace('—','');
+  const unhedgedNum = isNaN(+unhedged) ? null : +unhedged;
+  if (unhedgedNum === null) {
+    document.getElementById('unhedgedTail').textContent = '—';
+    document.getElementById('hedgedTail').textContent = '—';
+    document.getElementById('hedgeRatio').textContent = '—';
+    alert('Tail risk not available yet. Process CSV first.');
+    return;
+  }
+  document.getElementById('unhedgedTail').textContent = unhedgedNum.toFixed(1) + '%';
+  document.getElementById('hedgedTail').textContent = (unhedgedNum * (1 - protectionLevel/100)).toFixed(1) + '%';
+  document.getElementById('hedgeRatio').textContent = (protectionLevel / 10).toFixed(1) + 'x';
+  alert(`Calculating tail risk hedge:\nProtection Level: ${protectionLevel}%\nMax Cost: ${hedgingCost}%`);
+}
+function exportResults() {
+  if (portfolioData.length === 0) { alert('No data to export. Please upload data first.'); return; }
+  const csvContent = 'Symbol,Execution,Sector,Market Capitalisation,Price,Volume,Capital Allocation,Timeframe,Target,Stop Loss\n' +
+    portfolioData.map(p =>
+      `${p.Symbol},${p.Execution},${p.Sector},${p.MarketCap},${p.Price},${p.Volume},${p.Allocation},${p.Timeframe},${p.Target},${p.StopLoss}`
+    ).join('\n');
+  const blob = new Blob([csvContent], { type:'text/csv' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href = url; a.download = 'portfolio_export.csv'; a.click();
+}
+function clearData() {
+  document.getElementById('csvInput').value = '';
+  document.getElementById('fileInfo').classList.remove('active');
+  document.getElementById('fileInput').value = '';
+  portfolioData = [];
+  Object.values(charts).forEach(c => { try { c.destroy?.(); } catch(e){} });
+  initializeChartsFromBackend({sectors:{},names:{}}); // blank charts
+  // Reset visible numbers to em-dash
+  ['portfolioValue','totalAllocation','activePositions','portfolioChange','beta',
+   'portfolioBeta','dailyVol','weeklyVol','dailyRange','weeklyRange','maxDD',
+   'var5','cvar5','var1','cvar1','tailRisk','tailMultiple',
+   'expReturnDaily','expReturnWeekly','sharpeGross','sharpeNet',
+   'currentSharpe','optimalSharpe','varReduction',
+   'mktBeta','mktTstat','mktPval','mktSig',
+   'smbBeta','smbTstat','smbPval','smbSig',
+   'hmlBeta','hmlTstat','hmlPval','hmlSig',
+   'momBeta','momTstat','momPval','momSig',
+   'unhedgedTail','hedgedTail','hedgeRatio'
+  ].forEach(id => { const el = document.getElementById(id); if (el) el.textContent = '—'; });
+}
+
+// ---- Drag & Drop ----
+function setupDragAndDrop() {
+  const uploadArea = document.getElementById('uploadArea');
+  if (!uploadArea) return;
+  ['dragenter','dragover','dragleave','drop'].forEach(evt => uploadArea.addEventListener(evt, preventDefaults, false));
+  function preventDefaults(e){ e.preventDefault(); e.stopPropagation(); }
+  ['dragenter','dragover'].forEach(evt => uploadArea.addEventListener(evt, () => uploadArea.classList.add('dragover'), false));
+  ['dragleave','drop'].forEach(evt => uploadArea.addEventListener(evt, () => uploadArea.classList.remove('dragover'), false));
+  uploadArea.addEventListener('drop', handleDrop, false);
+}
+function handleDrop(e) {
+  const dt = e.dataTransfer; const files = dt.files;
+  if (files.length > 0) handleFile(files[0]);
+}
+
+// ---- Init ----
+document.addEventListener('DOMContentLoaded', function() {
+  initializeChartsFromBackend({sectors:{},names:{}}); // empty charts
+  updatePositionsTable(); // empty table
+  setupDragAndDrop();
+});
+</script>
+</body>
+</html>
